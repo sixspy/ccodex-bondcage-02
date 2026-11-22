@@ -1,0 +1,7 @@
+[file-db] before: CG-INC-SPLIT-001 available=120000.0 status=已冻结
+[file-db] split -> 200 已切分
+[file-db] parent after: available=0.0 status=已拆分 children=['CG-INC-SPLIT-001-L', 'CG-INC-SPLIT-001-R']
+[file-db] reconcile: split_out=120000.0 balanced=True
+[file-db] proof: frozen=120000.0 live=120000.0 matches=True
+[file-db] audit splits: {'split_links': 2, 'deviations': 0}
+[file-db] PASS

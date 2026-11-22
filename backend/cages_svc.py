@@ -50,11 +50,29 @@ def get_cage(cage_id: int, authorization: AuthHeader = None):
             "SELECT * FROM forfeits WHERE cage_id=? ORDER BY id DESC",
             (cage_id,),
         ).fetchall()
+        # 拆笼同源：父笼给出两只子份额，子笼给出父笼
+        children = conn.execute(
+            """SELECT * FROM cages WHERE split_parent_id=? ORDER BY split_side""",
+            (cage_id,),
+        ).fetchall()
+        parent = None
+        if cage["split_parent_id"] is not None:
+            parent = conn.execute(
+                "SELECT * FROM cages WHERE id=?", (cage["split_parent_id"],)
+            ).fetchone()
+        links = conn.execute(
+            """SELECT * FROM split_links
+               WHERE parent_cage_id=? OR child_cage_id=? ORDER BY id""",
+            (cage_id, cage_id),
+        ).fetchall()
         return {
             "cage": dict(cage),
             "attestations": [dict(a) for a in atts],
             "releases": [dict(r) for r in rels],
             "forfeits": [dict(f) for f in fors],
+            "children": [dict(c) for c in children],
+            "parent": dict(parent) if parent else None,
+            "split_links": [dict(l) for l in links],
         }
 
 

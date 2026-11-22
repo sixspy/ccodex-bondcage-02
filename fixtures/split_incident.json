@@ -1,0 +1,24 @@
+{
+  "bond": {
+    "party_key": "P-INC",
+    "party_name": "拆笼事故夹具当事人",
+    "balance": 300000,
+    "frozen": 120000,
+    "status": "正常",
+    "created_at": "2026-11-22T08:30:00"
+  },
+  "cages": [
+    {
+      "cage_code": "CG-INC-SPLIT-001",
+      "party_key": "P-INC",
+      "contract_no": "HT-INC-2026-1122",
+      "amount": 120000,
+      "available": 120000,
+      "generation": 1,
+      "status": "已冻结",
+      "beneficiary": "市交投项目办",
+      "created_at": "2026-11-22T09:00:00",
+      "frozen_at": "2026-11-22T09:00:00"
+    }
+  ]
+}

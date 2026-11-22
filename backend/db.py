@@ -26,7 +26,7 @@ PRODUCT_META = {
         "topup",
         "split",
     ],
-    "stubs": ["topup_cage", "split_cage"],
+    "stubs": ["topup_cage"],
 }
 
 
@@ -75,6 +75,9 @@ CREATE TABLE IF NOT EXISTS cages(
   generation INTEGER NOT NULL DEFAULT 1,
   status TEXT NOT NULL,
   beneficiary TEXT NOT NULL,
+  split_parent_id INTEGER REFERENCES cages(id),
+  split_side TEXT,
+  split_out REAL NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   frozen_at TEXT,
   FOREIGN KEY(party_key) REFERENCES bond_accounts(party_key)
@@ -148,8 +151,21 @@ CREATE TABLE IF NOT EXISTS split_jobs(
   right_amount REAL NOT NULL,
   mode TEXT NOT NULL,
   status TEXT NOT NULL,
+  left_cage_id INTEGER,
+  right_cage_id INTEGER,
   detail TEXT,
   created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS split_links(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  parent_cage_id INTEGER NOT NULL,
+  child_cage_id INTEGER NOT NULL UNIQUE,
+  side TEXT NOT NULL,
+  amount REAL NOT NULL,
+  job_id INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY(parent_cage_id) REFERENCES cages(id),
+  FOREIGN KEY(child_cage_id) REFERENCES cages(id)
 );
 CREATE TABLE IF NOT EXISTS deposit_ledger(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -269,9 +285,32 @@ def seed_attest_samples(conn: sqlite3.Connection) -> None:
         # 不预置通过/违约结论，只保证表可查；实际核验由业务动作写入
 
 
+def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+
+
+def migrate(conn: sqlite3.Connection) -> None:
+    """就地升级旧库（库路径不变）：补齐拆笼所需列。"""
+    cols = _columns(conn, "cages")
+    if "split_parent_id" not in cols:
+        conn.execute(
+            "ALTER TABLE cages ADD COLUMN split_parent_id INTEGER REFERENCES cages(id)"
+        )
+    if "split_side" not in cols:
+        conn.execute("ALTER TABLE cages ADD COLUMN split_side TEXT")
+    if "split_out" not in cols:
+        conn.execute("ALTER TABLE cages ADD COLUMN split_out REAL NOT NULL DEFAULT 0")
+    job_cols = _columns(conn, "split_jobs")
+    if "left_cage_id" not in job_cols:
+        conn.execute("ALTER TABLE split_jobs ADD COLUMN left_cage_id INTEGER")
+    if "right_cage_id" not in job_cols:
+        conn.execute("ALTER TABLE split_jobs ADD COLUMN right_cage_id INTEGER")
+
+
 def init_db() -> None:
     with connect() as conn:
         conn.executescript(SCHEMA)
+        migrate(conn)
         seed_users(conn)
         seed_bonds(conn)
         seed_cages(conn)

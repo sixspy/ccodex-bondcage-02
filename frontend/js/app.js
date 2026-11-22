@@ -48,6 +48,9 @@ createApp({
     const selectedCage = ref(null);
     const topupJobs = ref([]);
     const splitJobs = ref([]);
+    const splitLinks = ref([]);
+    const splitResult = ref(null);
+    const splitAudit = ref({ items: [], summary: {} });
 
     const bondForm = ref({
       party_key: "P-NEW",
@@ -92,7 +95,6 @@ createApp({
       right_amount: 10000,
       mode: "整笔切分",
     });
-
     function logout() {
       token.value = "";
       user.value = "";
@@ -140,6 +142,18 @@ createApp({
       cages.value.filter(
         (c) => c.status === "核验违约" || c.status === "部分罚没"
       )
+    );
+    // 只有“已冻结、非子份额、可用>0”的笼可以拆
+    const splittableCages = computed(() =>
+      cages.value.filter(
+        (c) =>
+          c.status === "已冻结" &&
+          c.split_parent_id === null &&
+          Number(c.available) > 0
+      )
+    );
+    const splitChildren = computed(() =>
+      cages.value.filter((c) => c.split_parent_id !== null)
     );
 
     async function login() {
@@ -195,6 +209,8 @@ createApp({
           lk,
           tj,
           sj,
+          sl,
+          sa,
         ] = await Promise.all([
           api.bonds(),
           api.cages(),
@@ -207,6 +223,8 @@ createApp({
           api.locks(),
           api.topupJobs(),
           api.splitJobs(),
+          api.splitLinks(),
+          api.auditSplits(),
         ]);
         bonds.value = b.items || [];
         cages.value = c.items || [];
@@ -219,6 +237,8 @@ createApp({
         locks.value = lk.items || [];
         topupJobs.value = tj.items || [];
         splitJobs.value = sj.items || [];
+        splitLinks.value = sl.items || [];
+        splitAudit.value = sa || { items: [], summary: {} };
         if (!attestForm.value.cage_id && frozenCages.value.length) {
           attestForm.value.cage_id = frozenCages.value[0].id;
         }
@@ -231,12 +251,9 @@ createApp({
         if (!topupForm.value.cage_id && cages.value.length) {
           topupForm.value.cage_id = cages.value[0].id;
         }
-        if (!splitForm.value.cage_id && cages.value.length) {
-          const cg = cages.value[0];
-          splitForm.value.cage_id = cg.id;
-          const half = Math.floor(Number(cg.available) / 2);
-          splitForm.value.left_amount = half;
-          splitForm.value.right_amount = Number(cg.available) - half;
+        if (!splitForm.value.cage_id && splittableCages.value.length) {
+          splitForm.value.cage_id = splittableCages.value[0].id;
+          syncSplitAmounts();
         }
       } catch (e) {
         flashErr(e);
@@ -374,12 +391,40 @@ createApp({
       }
     }
 
-    async function doSplitStub() {
+    function syncSplitAmounts() {
+      const cg = cages.value.find((c) => c.id === splitForm.value.cage_id);
+      if (!cg) return;
+      const total = Number(cg.available);
+      const left = Math.floor((total / 2) * 100) / 100;
+      splitForm.value.left_amount = left;
+      splitForm.value.right_amount = Number((total - left).toFixed(2));
+      splitForm.value.mode = "整笔切分";
+    }
+
+    async function doSplit() {
       clearFlash();
+      splitResult.value = null;
       try {
         if (!splitForm.value.cage_id) throw new Error("请选择笼");
-        const row = await api.splitStub(splitForm.value);
-        flashOk(`拆笼空桩已登记 #${row.job_id}`);
+        const cg = cages.value.find((c) => c.id === splitForm.value.cage_id);
+        if (!cg) throw new Error("笼不存在");
+        const left = Number(splitForm.value.left_amount);
+        const right = Number(splitForm.value.right_amount);
+        if (Math.abs(left + right - Number(cg.available)) > 1e-6) {
+          throw new Error(
+            `左右金额之和须等于可用额 ${fmt(cg.available)}（当前 ${fmt(left + right)}）`
+          );
+        }
+        const row = await api.split({
+          cage_id: splitForm.value.cage_id,
+          left_amount: left,
+          right_amount: right,
+          mode: "整笔切分",
+        });
+        splitResult.value = row;
+        flashOk(
+          `整笔切分完成：${row.left_cage.cage_code} / ${row.right_cage.cage_code}`
+        );
         await refresh();
       } catch (e) {
         flashErr(e);
@@ -445,7 +490,13 @@ createApp({
       loadReconcile,
       loadProof,
       doTopupStub,
-      doSplitStub,
+      doSplit,
+      syncSplitAmounts,
+      splitLinks,
+      splitAudit,
+      splitResult,
+      splittableCages,
+      splitChildren,
     };
   },
   template: `

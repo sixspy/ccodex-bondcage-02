@@ -24,7 +24,11 @@ def _reconcile_cage(conn, cage) -> dict:
            WHERE cage_id=? AND status='已罚没' AND cage_generation=?""",
         (cage_id, gen),
     ).fetchone()["s"]
-    accounted = round(float(available) + float(released) + float(forfeited), 6)
+    # 拆出额：原笼切出的左右子份额之和（子笼属另一批笼面，不再计入原笼可用）
+    split_out = float(cage["split_out"] or 0)
+    accounted = round(
+        float(available) + float(released) + float(forfeited) + split_out, 6
+    )
     ok = abs(accounted - amount) < 1e-6
     # 账户侧：该当事人冻结额应覆盖所有仍冻结/核验中的笼可用
     party = cage["party_key"]
@@ -48,6 +52,9 @@ def _reconcile_cage(conn, cage) -> dict:
         "available": available,
         "released": float(released),
         "forfeited": float(forfeited),
+        "split_out": round(split_out, 6),
+        "split_parent_id": cage["split_parent_id"],
+        "split_side": cage["split_side"],
         "accounted": accounted,
         "balanced": ok,
         "gap": round(amount - accounted, 6),
@@ -55,7 +62,7 @@ def _reconcile_cage(conn, cage) -> dict:
         "account_frozen": float(acct["frozen"]) if acct else None,
         "live_cage_available": float(live_frozen),
         "proof": {
-            "formula": "available + released + forfeited == amount（同笼代）",
+            "formula": "available + released + forfeited + split_out == amount（同笼代）",
             "left": accounted,
             "right": amount,
         },

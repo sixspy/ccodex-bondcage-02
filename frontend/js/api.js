@@ -61,7 +61,14 @@ export function createApi(getToken, onUnauthorized) {
     topupStub: (data) =>
       req("/api/topup-stub", { method: "POST", body: JSON.stringify(data) }),
     splitJobs: () => req("/api/split/jobs"),
-    splitStub: (data) =>
-      req("/api/split-stub", { method: "POST", body: JSON.stringify(data) }),
+    splitLinks: (parentId) =>
+      req(
+        parentId
+          ? `/api/split/links?parent_cage_id=${encodeURIComponent(parentId)}`
+          : "/api/split/links"
+      ),
+    split: (data) =>
+      req("/api/splits", { method: "POST", body: JSON.stringify(data) }),
+    auditSplits: () => req("/api/audit/splits"),
   };
 }

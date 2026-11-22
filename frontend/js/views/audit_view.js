@@ -45,5 +45,25 @@ export const auditViewTemplate = `
       </table>
     </div>
   </div>
+  <h3 style="margin-top:16px">拆笼审计</h3>
+  <p class="hint">
+    拆分关系 {{ (splitAudit.summary && splitAudit.summary.split_links) || 0 }} 条 ·
+    拆笼偏航 {{ (splitAudit.summary && splitAudit.summary.deviations) || 0 }} 次。
+    父笼切分、子份额落地、偏航拒写均在此同源可查。
+  </p>
+  <table>
+    <thead><tr><th>时间</th><th>人</th><th>动作</th><th>目标</th><th>载荷</th></tr></thead>
+    <tbody>
+      <tr v-for="a in (splitAudit.items||[])" :key="'sp'+a.id">
+        <td>{{ a.created_at }}</td>
+        <td>{{ a.actor }}</td>
+        <td>
+          <span class="badge" :class="a.action==='split_deviation'?'fail':'pass'">{{ a.action }}</span>
+        </td>
+        <td>{{ a.target }}</td>
+        <td><code style="font-size:11px">{{ a.payload }}</code></td>
+      </tr>
+    </tbody>
+  </table>
 </section>
 `;
